@@ -9,24 +9,24 @@ from fastapi import concurrency
 
 
 @pytest.fixture
-def reset_teardown_limiter(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reset the teardown limiter before/after tests to avoid interference
+def reset_overflow_limiter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reset the overflow limiter before/after tests to avoid interference
     between different anyio backends."""
-    monkeypatch.setattr(concurrency, "_teardown_limiter", CapacityLimiter(5))
+    monkeypatch.setattr(concurrency, "_deadlock_overflow_limiter", CapacityLimiter(5))
 
 
 @pytest.mark.anyio
-@pytest.mark.usefixtures("reset_teardown_limiter")
-async def test_run_in_teardown_threadpool() -> None:
+@pytest.mark.usefixtures("reset_overflow_limiter")
+async def test_run_in_threadpool_with_overflow() -> None:
     def func(x: int, y: int) -> int:
         return x + y
 
-    result = await concurrency.run_in_teardown_threadpool(func, 1, y=2)
+    result = await concurrency.run_in_threadpool_with_overflow(func, 1, y=2)
     assert result == 3
 
 
 @pytest.mark.anyio
-@pytest.mark.usefixtures("reset_teardown_limiter")
+@pytest.mark.usefixtures("reset_overflow_limiter")
 async def test_contextmanager_in_threadpool() -> None:
     @contextlib.contextmanager
     def context_manager() -> Iterator[str]:
@@ -37,7 +37,7 @@ async def test_contextmanager_in_threadpool() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.usefixtures("reset_teardown_limiter")
+@pytest.mark.usefixtures("reset_overflow_limiter")
 async def test_competing_acquire_release() -> None:
     """Check that the main threadpool does not block the teardown threadpool."""
     pool_size = anyio.to_thread.current_default_thread_limiter().total_tokens
@@ -63,6 +63,6 @@ async def test_competing_acquire_release() -> None:
 
         # The threadpool should now be full of threads waiting to acquire
         # The release function should be able to run without being blocked by acquires
-        await concurrency.run_in_teardown_threadpool(release)
+        await concurrency.run_in_threadpool_with_overflow(release)
 
     assert len(acquired) == pool_size

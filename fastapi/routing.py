@@ -40,8 +40,8 @@ from fastapi._compat import (
 )
 from fastapi.concurrency import (
     iterate_in_threadpool,
-    run_in_teardown_threadpool,
     run_in_threadpool,
+    run_in_threadpool_with_overflow,
 )
 from fastapi.datastructures import Default, DefaultPlaceholder
 from fastapi.dependencies.models import Dependant
@@ -296,7 +296,7 @@ async def serialize_response(
         if is_coroutine:
             value, errors = field.validate(response_content, {}, loc=("response",))
         else:
-            value, errors = await run_in_teardown_threadpool(
+            value, errors = await run_in_threadpool_with_overflow(
                 field.validate, response_content, {}, loc=("response",)
             )
         if errors:
